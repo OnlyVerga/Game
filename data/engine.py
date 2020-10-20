@@ -1,4 +1,4 @@
-import pygame, math, os, sys
+import pygame, math, os, random, noise
 from pygame.locals import *
 
 white = (255, 255, 255)
@@ -6,12 +6,16 @@ black = (0, 0, 0)
 red = (255, 0, 0)
 green = (0, 255, 0)
 blue = (0, 0, 255)
+light_blue = (0, 255, 255)
 yellow = (255, 255, 0)
-cyan = (0, 255, 255)
 purple = (255, 0, 255)
 
 global e_colorkey
-e_colorkey = (255,255,255)
+e_colorkey = white
+
+pygame.init()
+
+Monitor = pygame.display.Info()
 
 def set_global_colorkey(colorkey):
     global e_colorkey
@@ -73,9 +77,6 @@ class physics_obj(object):
             self.y = self.rect.y
         return collision_types
 
-# 3d collision detection
-# todo: add 3d physics-based movement
-
 class cuboid(object):
     
     def __init__(self,x,y,z,x_size,y_size,z_size):
@@ -106,23 +107,24 @@ class cuboid(object):
 def simple_entity(x,y,e_type):
     return entity(x,y,1,1,e_type)
 
-def flip(img,boolean=True):
-    return pygame.transform.flip(img,boolean,False)
+def flip(img,boolean=True, boolean_2=False):
+    return pygame.transform.flip(img,boolean,boolean_2)
  
-def blit_center(surf,surf2,pos):
+def blit_center(surf: object, surf2: object, pos: object, scaling) -> object:
     x = int(surf2.get_width()/2)
     y = int(surf2.get_height()/2)
-    surf.blit(surf2,(pos[0]-x,pos[1]-y))
+    surf.blit(pygame.transform.scale(surf2, (surf2.get_size()[0] * scaling, surf2.get_size()[1] * scaling)),(pos[0]-x,pos[1]-y))
  
 class entity(object):
     global animation_database, animation_higher_database
    
     def __init__(self,x,y,size_x,size_y,e_type): # x, y, size_x, size_y, type
+        self.scale = 1
         self.x = x
         self.y = y
         self.size_x = size_x
         self.size_y = size_y
-        self.obj = physics_obj(x,y,size_x,size_y)
+        self.obj = physics_obj(x,y,size_x * self.scale,size_y * self.scale)
         self.animation = None
         self.image = None
         self.animation_frame = 0
@@ -136,6 +138,10 @@ class entity(object):
         self.set_action('idle') # overall action for the entity
         self.entity_data = {}
         self.alpha = None
+
+    def scale_size(self, scaling):
+        self.scale = scaling
+        self.obj = physics_obj(self.x, self.y, self.size_x * self.scale, self.size_y * self.scale)
  
     def set_pos(self,x,y):
         self.x = x
@@ -188,6 +194,9 @@ class entity(object):
         x = self.x+int(self.size_x/2)
         y = self.y+int(self.size_y/2)
         return [x,y]
+
+    def get_pos(self):
+        return [self.x, self.y]
  
     def clear_animation(self):
         self.animation = None
@@ -256,7 +265,7 @@ class entity(object):
             image_to_render = pygame.transform.rotate(image_to_render,self.rotation)
             if self.alpha != None:
                 image_to_render.set_alpha(self.alpha)
-            blit_center(surface,image_to_render,(int(self.x)-scroll[0]+self.offset[0]+center_x,int(self.y)-scroll[1]+self.offset[1]+center_y))
+            blit_center(surface,image_to_render,(int(self.x)-scroll[0]+self.offset[0]+center_x,int(self.y)-scroll[1]+self.offset[1]+center_y), self.scale)
  
 # animation stuff
 
@@ -369,7 +378,6 @@ class particle(object):
         self.y += self.motion[1]
         return running
         
-
 # other useful functions
 
 def swap_color(img,old_c,new_c):
@@ -381,3 +389,48 @@ def swap_color(img,old_c,new_c):
     surf.set_colorkey(e_colorkey)
     return surf
 
+def generate_flat_chunk(x,y, CHUNK_SIZE):
+    chunk_data = []
+    for y_pos in range(CHUNK_SIZE):
+        for x_pos in range(CHUNK_SIZE):
+            target_x = x * CHUNK_SIZE + x_pos
+            target_y = y * CHUNK_SIZE + y_pos
+            tile_type = 0 # nothing
+            if target_y > 10:
+                tile_type = 2 # dirt
+            elif target_y == 10:
+                tile_type = 1 # grass
+            elif target_y == 9:
+                if random.randint(1,5) == 1:
+                    tile_type = 3 # plant
+            if tile_type != 0:
+                chunk_data.append([[target_x,target_y],tile_type])
+    return chunk_data
+
+def generate_chunk(x,y, CHUNK_SIZE, offset = 0.1, multiplier = 5):
+    chunk_data = []
+    for y_pos in range(CHUNK_SIZE):
+        for x_pos in range(CHUNK_SIZE):
+            target_x = x * CHUNK_SIZE + x_pos
+            target_y = y * CHUNK_SIZE + y_pos
+            tile_type = 0 # nothing
+            off = int(noise.pnoise1(target_x * offset, repeat=9999999) * multiplier)
+            if target_y > 10 - off:
+                tile_type = 4 # stone
+            if target_y <= 10 - off + round(random.random()) and target_y > 8 - off:
+                tile_type = 2 # dirt
+            elif target_y == 8 - off:
+                tile_type = 1 # grass
+            elif target_y == 8 - off - 1:
+                if random.randint(1,5) == 1:
+                    tile_type = 3 # plant
+            if tile_type != 0:
+                chunk_data.append([[target_x,target_y],tile_type])
+    return chunk_data
+
+def block_at(pos, CHUNK_SIZE, off, chunk):
+    posx = int(int((pos[0] + off[0]) / 2) / CHUNK_SIZE)
+    posy = int(int((pos[1] + off[1]) / 2) / CHUNK_SIZE)
+    for a in chunk:
+        if a[0] == [posx, posy]:
+            return chunk.index(a)
