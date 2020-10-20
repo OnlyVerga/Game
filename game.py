@@ -9,8 +9,8 @@ g = 1.7
 window = pygame.display.set_mode(WIN_DIM)
 display = pygame.Surface(WIN_DIM)
 pygame.mouse.set_visible(False)
-start = False
 scroll = [0, 0]
+player_vel = 5
 
 e.load_animations("data/Graphics/")
 
@@ -26,7 +26,6 @@ bullets = []
 while True:
     player_coord = player.get_pos()
     pos = pygame.mouse.get_pos()
-    display.fill(e.white)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
@@ -36,28 +35,28 @@ while True:
                 pygame.quit()
                 sys.exit()
             if event.key == pygame.K_d:
-                delta_player[0] = 10
+                delta_player[0] = player_vel
             if event.key == pygame.K_a:
-                delta_player[0] = -10
-            if event.key == pygame.K_SPACE and collisions["bottom"]: #      if you press space in the first frame the game will crash
-                delta_player[1] = - 20
+                delta_player[0] = -player_vel
+            if event.key == pygame.K_w:
+                delta_player[1] = -player_vel
             if event.key == pygame.K_s:
-                start = True
+                delta_player[1] = player_vel
+
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_d or event.key == pygame.K_a:
                 delta_player[0] = 0
-
+            if event.key == pygame.K_s or event.key == pygame.K_w:
+                delta_player[1] = 0
         if event.type == pygame.MOUSEBUTTONDOWN:
-            pos = pygame.mouse.get_pos()
-            rot = -math.degrees(math.atan2(pos[1] - (int(player.get_center()[1])), pos[0] - (int(player.get_center()[0])))) - 90
-            a = ob.Bullet([player_coord[0] + player.size_x / 2, player_coord[1] + player.size_y / 2], rot)
-            bullets.append(a)
-    if start:
-        delta_player[1] += g
-        if delta_player[1] > 9 * g:
-            delta_player[1] = 9 * g
+            if event.button == 1:
+                rot = -math.degrees(math.atan2(pos[1] - (int(player.get_center()[1])), pos[0] - (int(player.get_center()[0])))) - 90
+                a = ob.Bullet([player_coord[0] + player.size_x / 2, player_coord[1] + player.size_y / 2], rot)
+                bullets.append(a)
 
     collisions = player.move(delta_player, [pygame.Rect(0, 600, 800, 1)])
+
+    display.fill(e.red)
     player.display(display, scroll)
     player.change_frame(1)
     display.blit(pygame.transform.scale2x(cursor), (pos[0] - cursor.get_width() / 2, pos[1] - cursor.get_height() / 2))

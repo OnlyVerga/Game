@@ -1,5 +1,4 @@
 import pygame, math, os, random, noise
-from pygame.locals import *
 
 white = (255, 255, 255)
 black = (0, 0, 0)
