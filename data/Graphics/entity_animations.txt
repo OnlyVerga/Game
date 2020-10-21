@@ -1,1 +1,0 @@
-player/idle/ 1 loop

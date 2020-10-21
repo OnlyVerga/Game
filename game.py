@@ -5,9 +5,12 @@ import data.objects as ob
 pygame.init()
 WIN_DIM = (800, 600)
 g = 1.7
-
 window = pygame.display.set_mode(WIN_DIM)
 display = pygame.Surface(WIN_DIM)
+
+font = e.generate_font('data/fonts/small_font.png', e.font_dat, 5, 8,(185,57,57))
+font_2 = e.generate_font('data/fonts/small_font.png', e.font_dat, 5, 8,(51,34,40))
+
 pygame.mouse.set_visible(False)
 scroll = [0, 0]
 player_vel = 5
@@ -42,6 +45,8 @@ while True:
                 delta_player[1] = -player_vel
             if event.key == pygame.K_s:
                 delta_player[1] = player_vel
+            if event.key == pygame.K_SPACE:
+                player.set_action("running")
 
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_d or event.key == pygame.K_a:
@@ -57,7 +62,8 @@ while True:
     collisions = player.move(delta_player, [pygame.Rect(0, 600, 800, 1)])
 
     display.fill(e.red)
-    player.display(display, scroll)
+    e.show_text("Hello, world!", 0, 0, 185, font_2, display, scaling=5)
+    player.display(display)
     player.change_frame(1)
     display.blit(pygame.transform.scale2x(cursor), (pos[0] - cursor.get_width() / 2, pos[1] - cursor.get_height() / 2))
     index = 0

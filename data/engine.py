@@ -1,4 +1,5 @@
 import pygame, math, os, random, noise
+from copy import deepcopy
 
 white = (255, 255, 255)
 black = (0, 0, 0)
@@ -8,6 +9,36 @@ blue = (0, 0, 255)
 light_blue = (0, 255, 255)
 yellow = (255, 255, 0)
 purple = (255, 0, 255)
+global anim_path
+anim_path = ""
+
+font_dat = {'A':[3],'B':[3],'C':[3],'D':[3],'E':[3],'F':[3],'G':[3],'H':[3],'I':[3],'J':[3],'K':[3],'L':[3],'M':[5],'N':[3],'O':[3],'P':[3],'Q':[3],'R':[3],'S':[3],'T':[3],'U':[3],'V':[3],'W':[5],'X':[3],'Y':[3],'Z':[3],
+          'a':[3],'b':[3],'c':[3],'d':[3],'e':[3],'f':[3],'g':[3],'h':[3],'i':[1],'j':[2],'k':[3],'l':[3],'m':[5],'n':[3],'o':[3],'p':[3],'q':[3],'r':[2],'s':[3],'t':[3],'u':[3],'v':[3],'w':[5],'x':[3],'y':[3],'z':[3],
+          '.':[1],'-':[3],',':[2],':':[1],'+':[3],'\'':[1],'!':[1],'?':[3],
+          '0':[3],'1':[3],'2':[3],'3':[3],'4':[3],'5':[3],'6':[3],'7':[3],'8':[3],'9':[3],
+          '(':[2],')':[2],'/':[3],'_':[5],'=':[3],'\\':[3],'[':[2],']':[2],'*':[3],'"':[3],'<':[3],'>':[3],';':[1]}
+
+class Spritesheet(object):
+    def __init__(self, filename):
+        self.sheet = pygame.image.load(filename).convert()
+
+    def image_at(self, rectangle, colorkey = None):
+        rect = pygame.Rect(rectangle)
+        image = pygame.Surface(rect.size).convert()
+        image.blit(self.sheet, (0, 0), rect)
+        if colorkey is not None:
+            if colorkey == -1:
+                colorkey = image.get_at((0, 0))
+            image.set_colorkey(colorkey, pygame.RLEACCEL)
+        return image
+
+    def images_at(self, rects, colorkey = None):
+        return [self.image_at(rect, colorkey) for rect in rects]
+
+    def width(self):
+        return self.sheet.get_width()
+
+
 
 global e_colorkey
 e_colorkey = white
@@ -115,33 +146,38 @@ def blit_center(surf: object, surf2: object, pos: object, scaling) -> object:
     surf.blit(pygame.transform.scale(surf2, (surf2.get_size()[0] * scaling, surf2.get_size()[1] * scaling)),(pos[0]-x,pos[1]-y))
  
 class entity(object):
-    global animation_database, animation_higher_database
-   
-    def __init__(self,x,y,size_x,size_y,e_type): # x, y, size_x, size_y, type
+    def __init__(self,x,y,size_x,size_y,e_type, colorkey = e_colorkey): # x, y, size_x, size_y, type, colorkey
         self.scale = 1
         self.x = x
         self.y = y
         self.size_x = size_x
         self.size_y = size_y
-        self.obj = physics_obj(x,y,size_x * self.scale,size_y * self.scale)
-        self.animation = None
-        self.image = None
-        self.animation_frame = 0
-        self.animation_tags = []
+        self.colorkey = colorkey
+        self.obj = physics_obj(x, y, size_x * self.scale, size_y * self.scale)
+        self.image_path = anim_path + e_type + "/idle.png"
+        self.sheet = Spritesheet(self.image_path)
+        self.image = self.sheet.image_at((32, 0, self.size_x, self.size_y), self.colorkey)
         self.flip = False
         self.offset = [0,0]
         self.rotation = 0
         self.type = e_type # used to determine animation set among other things
-        self.action_timer = 0
-        self.action = ''
+        self.action = ""
         self.set_action('idle') # overall action for the entity
-        self.entity_data = {}
         self.alpha = None
+        self.current_frame = 0
+        self.totalframes = self.sheet.width() / self.size_x
+        self.countframes = 0
+        self.animations = {}
+        for anim in anim_database:
+            if self.type in anim:
+                self.animations[anim.split("/")[-1]] = anim_database[anim]
+        self.start()
+        self.next_step = int(self.animations[self.action][0][self.current_frame])
 
     def scale_size(self, scaling):
         self.scale = scaling
         self.obj = physics_obj(self.x, self.y, self.size_x * self.scale, self.size_y * self.scale)
- 
+
     def set_pos(self,x,y):
         self.x = x
         self.y = y
@@ -162,22 +198,16 @@ class entity(object):
     def set_flip(self,boolean):
         self.flip = boolean
  
-    def set_animation_tags(self,tags):
-        self.animation_tags = tags
- 
-    def set_animation(self,sequence):
-        self.animation = sequence
-        self.animation_frame = 0
- 
-    def set_action(self,action_id,force=False):
-        if (self.action == action_id) and (force == False):
+    def set_action(self,action_id):
+        if self.action == action_id:
             pass
         else:
             self.action = action_id
-            anim = animation_higher_database[self.type][action_id]
-            self.animation = anim[0]
-            self.set_animation_tags(anim[1])
-            self.animation_frame = 0
+            self.image_path = anim_path + self.type + "/" + action_id + ".png"
+            self.sheet = Spritesheet(self.image_path)
+            self.image = self.sheet.image_at((0, 0, self.size_x, self.size_y), self.colorkey)
+            self.totalframes = self.sheet.width() / self.size_x
+            self.running = True
 
     def get_entity_angle(entity_2):
         x1 = self.x+int(self.size_x/2)
@@ -197,127 +227,55 @@ class entity(object):
     def get_pos(self):
         return [self.x, self.y]
  
-    def clear_animation(self):
-        self.animation = None
- 
     def set_image(self,image):
         self.image = image
- 
-    def set_offset(self,offset):
-        self.offset = offset
- 
-    def set_frame(self,amount):
-        self.animation_frame = amount
+
+    def start(self):
+        self.running = True
+
+    def stop(self):
+        self.running = False
  
     def handle(self):
         self.action_timer += 1
         self.change_frame(1)
  
-    def change_frame(self,amount):
-        self.animation_frame += amount
-        if self.animation != None:
-            while self.animation_frame < 0:
-                if 'loop' in self.animation_tags:
-                    self.animation_frame += len(self.animation)
-                else:
-                    self.animation = 0
-            while self.animation_frame >= len(self.animation):
-                if 'loop' in self.animation_tags:
-                    self.animation_frame -= len(self.animation)
-                else:
-                    self.animation_frame = len(self.animation)-1
- 
-    def get_current_img(self):
-        if self.animation == None:
-            if self.image != None:
-                return flip(self.image,self.flip)
-            else:
-                return None
-        else:
-            return flip(animation_database[self.animation[self.animation_frame]],self.flip)
+    def change_frame(self, current):
+        if self.running:
+            self.next_step = int(self.animations[self.action][0][self.current_frame])
+            self.countframes += current
+            if self.countframes == self.next_step:
+                self.countframes = 0
+                self.current_frame += 1
+            if self.current_frame == self.totalframes:
+                self.current_frame = 0
+                if self.animations[self.action][1] != "loop":
+                    self.running = False
+            self.image = self.sheet.image_at((self.current_frame * self.size_x, 0, self.size_x, self.size_y))
 
-    def get_drawn_img(self):
-        image_to_render = None
-        if self.animation == None:
-            if self.image != None:
-                image_to_render = flip(self.image,self.flip).copy()
-        else:
-            image_to_render = flip(animation_database[self.animation[self.animation_frame]],self.flip).copy()
+    def display(self,surface):
+        image_to_render = self.image
         if image_to_render != None:
             center_x = image_to_render.get_width()/2
             center_y = image_to_render.get_height()/2
             image_to_render = pygame.transform.rotate(image_to_render,self.rotation)
             if self.alpha != None:
                 image_to_render.set_alpha(self.alpha)
-            return image_to_render, center_x, center_y
- 
-    def display(self,surface,scroll):
-        image_to_render = None
-        if self.animation == None:
-            if self.image != None:
-                image_to_render = flip(self.image,self.flip).copy()
-        else:
-            image_to_render = flip(animation_database[self.animation[self.animation_frame]],self.flip).copy()
-        if image_to_render != None:
-            center_x = image_to_render.get_width()/2
-            center_y = image_to_render.get_height()/2
-            image_to_render = pygame.transform.rotate(image_to_render,self.rotation)
-            if self.alpha != None:
-                image_to_render.set_alpha(self.alpha)
-            blit_center(surface,image_to_render,(int(self.x)-scroll[0]+self.offset[0]+center_x,int(self.y)-scroll[1]+self.offset[1]+center_y), self.scale)
- 
-# animation stuff
-
-global animation_database
-animation_database = {}
- 
-global animation_higher_database
-animation_higher_database = {}
- 
-# a sequence looks like [[0,1],[1,1],[2,1],[3,1],[4,2]]
-# the first numbers are the image name(as integer), while the second number shows the duration of it in the sequence
-def animation_sequence(sequence,base_path,colorkey=(255,255,255),transparency=255):
-    global animation_database
-    result = []
-    for frame in sequence:
-        image_id = base_path + base_path.split('/')[-2] + '_' + str(frame[0])
-        image = pygame.image.load(image_id + '.png').convert()
-        image.set_colorkey(colorkey)
-        image.set_alpha(transparency)
-        animation_database[image_id] = image.copy()
-        for i in range(frame[1]):
-            result.append(image_id)
-    return result
- 
- 
-def get_frame(ID):
-    global animation_database
-    return animation_database[ID]
- 
-def load_animations(path):
-    global animation_higher_database, e_colorkey
-    f = open(path + 'entity_animations.txt','r')
-    data = f.read()
-    f.close()
-    for animation in data.split('\n'):
-        sections = animation.split(' ')
-        anim_path = sections[0]
-        entity_info = anim_path.split('/')
-        entity_type = entity_info[0]
-        animation_id = entity_info[1]
-        timings = sections[1].split(';')
-        tags = sections[2].split(';')
-        sequence = []
-        n = 0
-        for timing in timings:
-            sequence.append([n,int(timing)])
-            n += 1
-        anim = animation_sequence(sequence,path + anim_path,e_colorkey)
-        if entity_type not in animation_higher_database:
-            animation_higher_database[entity_type] = {}
-        animation_higher_database[entity_type][animation_id] = [anim.copy(),tags]
+            blit_center(surface,image_to_render,(int(self.x)+self.offset[0]+center_x,int(self.y)+self.offset[1]+center_y), self.scale)
 
 # particles
+global anim_database
+anim_database = {}
+
+def load_animations(path):
+    global anim_path, anim_database
+    anim_path = path
+    with open(anim_path + "/animations_info.txt", "r") as f:
+        data = f.read()
+    data = data.split("\n")
+    for anim in data:
+        relative_to, duration, tags = anim.split(" ")
+        anim_database[relative_to] = [duration.split(";"), tags]
 
 def particle_file_sort(l):
     l2 = []
@@ -433,3 +391,85 @@ def block_at(pos, CHUNK_SIZE, off, chunk):
     for a in chunk:
         if a[0] == [posx, posy]:
             return chunk.index(a)
+
+def show_text(Text,X,Y,WidthLimit,Font,surface,scaling=1,overflow='normal', Spacing=1):
+    Text += ' '
+    OriginalX = X
+    OriginalY = Y
+    X = 0
+    Y = 0
+    CurrentWord = ''
+    if overflow == 'normal':
+        for char in Text:
+            if char not in [' ','\n']:
+                try:
+                    Image = Font[str(char)][1]
+                    CurrentWord += str(char)
+                except KeyError:
+                    pass
+            else:
+                WordTotal = 0
+                for char2 in CurrentWord:
+                    WordTotal += Font[char2][0]
+                    WordTotal += Spacing
+                if WordTotal+X-OriginalX > WidthLimit:
+                    X = OriginalX
+                    Y += Font['Height']
+                for char2 in CurrentWord:
+                    Image = Font[str(char2)][1]
+                    surface.blit(pygame.transform.scale(Image,(Image.get_width()*scaling,Image.get_height()*scaling)),(X * scaling + OriginalX,Y * scaling + OriginalY))
+                    X += Font[char2][0]
+                    X += Spacing
+                if char == ' ':
+                    X += Font['A'][0]
+                    X += Spacing
+                else:
+                    X = OriginalX
+                    Y += Font['Height']
+                CurrentWord = ''
+            if X-OriginalX > WidthLimit:
+                X = OriginalX
+                Y += Font['Height']
+        return X,Y
+    if overflow == 'cut all':
+        for char in Text:
+            if char not in [' ','\n']:
+                try:
+                    Image = Font[str(char)][1]
+                    surface.fill(green)
+                    surface.blit(pygame.transform.scale(Image,(Image.get_width()*scaling,Image.get_height()*scaling)),(X*scaling,Y*scaling))
+                    X += Font[str(char)][0]
+                    X += Spacing
+                except KeyError:
+                    pass
+            else:
+                if char == ' ':
+                    X += Font['A'][0]
+                    X += Spacing
+                if char == '\n':
+                    X = OriginalX
+                    Y += Font['Height']
+                CurrentWord = ''
+            if X-OriginalX > WidthLimit:
+                X = OriginalX
+                Y += Font['Height']
+        return X,Y
+
+def generate_font(FontImage,FontSpacingMain,TileSize,TileSizeY,color):
+    FontSpacing = deepcopy(FontSpacingMain)
+    FontOrder = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','.','-',',',':','+','\'','!','?','0','1','2','3','4','5','6','7','8','9','(',')','/','_','=','\\','[',']','*','"','<','>',';']
+    FontImage = pygame.image.load(FontImage).convert()
+    NewSurf = pygame.Surface((FontImage.get_width(),FontImage.get_height())).convert()
+    NewSurf.fill(color)
+    FontImage.set_colorkey((0,0,0))
+    NewSurf.blit(FontImage,(0,0))
+    FontImage = NewSurf.copy()
+    FontImage.set_colorkey((255,255,255))
+    num = 0
+    for char in FontOrder:
+        FontImage.set_clip(pygame.Rect(((TileSize+1)*num),0,TileSize,TileSizeY))
+        CharacterImage = FontImage.subsurface(FontImage.get_clip())
+        FontSpacing[char].append(CharacterImage)
+        num += 1
+    FontSpacing['Height'] = TileSizeY
+    return FontSpacing
