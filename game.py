@@ -8,8 +8,8 @@ g = 1.7
 window = pygame.display.set_mode(WIN_DIM)
 display = pygame.Surface(WIN_DIM)
 
-font = e.generate_font('data/fonts/small_font.png', e.font_dat, 5, 8,(185,57,57))
-font_2 = e.generate_font('data/fonts/small_font.png', e.font_dat, 5, 8,(51,34,40))
+font_1 = e.generate_font('data/fonts/small_font.png', e.font_dat, 5, 8, (185,57,57))
+font_2 = e.generate_font('data/fonts/small_font.png', e.font_dat, 5, 8, (51,34,40))
 
 pygame.mouse.set_visible(False)
 scroll = [0, 0]
@@ -19,7 +19,7 @@ e.load_animations("data/Graphics/")
 
 player_coord = [0, 0]
 delta_player = [0, 0]
-player = e.entity(player_coord[0], player_coord[1], 32, 64, "player")
+player = e.entity(player_coord[0], player_coord[1], 32, 64, "player", colorkey = e.white)
 
 cursor = pygame.image.load("data/Graphics/cursor.png").convert()
 cursor.set_colorkey(e.black)
@@ -27,6 +27,7 @@ cursor.set_colorkey(e.black)
 bullets = []
 
 while True:
+    display.fill(e.light_blue)
     player_coord = player.get_pos()
     pos = pygame.mouse.get_pos()
     for event in pygame.event.get():
@@ -45,8 +46,10 @@ while True:
                 delta_player[1] = -player_vel
             if event.key == pygame.K_s:
                 delta_player[1] = player_vel
-            if event.key == pygame.K_SPACE:
+            if event.key == pygame.K_q:
                 player.set_action("running")
+            if event.key == pygame.K_e:
+                player.set_action("idle \")
 
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_d or event.key == pygame.K_a:
@@ -61,8 +64,9 @@ while True:
 
     collisions = player.move(delta_player, [pygame.Rect(0, 600, 800, 1)])
 
-    display.fill(e.red)
-    e.show_text("Hello, world!", 0, 0, 185, font_2, display, scaling=5)
+    e.show_text("SUPER GIOCO FANTASTICO!!!", 0, 0, 185, font_2, display, scaling=5)
+    e.show_text("E CAMBIA ANCHE COLORE", 0, 120, 185, font_1, display, scaling=5)
+    pygame.draw.line(display, e.black, (185, 0), (185, 100))
     player.display(display)
     player.change_frame(1)
     display.blit(pygame.transform.scale2x(cursor), (pos[0] - cursor.get_width() / 2, pos[1] - cursor.get_height() / 2))

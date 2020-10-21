@@ -1,5 +1,10 @@
-import pygame, math, os, random, noise
 from copy import deepcopy
+
+import math
+import noise
+import os
+import pygame
+import random
 
 white = (255, 255, 255)
 black = (0, 0, 0)
@@ -29,7 +34,7 @@ class Spritesheet(object):
         if colorkey is not None:
             if colorkey == -1:
                 colorkey = image.get_at((0, 0))
-            image.set_colorkey(colorkey, pygame.RLEACCEL)
+            image.set_colorkey(colorkey)
         return image
 
     def images_at(self, rects, colorkey = None):
@@ -134,9 +139,6 @@ class cuboid(object):
 
 # entity stuff
 
-def simple_entity(x,y,e_type):
-    return entity(x,y,1,1,e_type)
-
 def flip(img,boolean=True, boolean_2=False):
     return pygame.transform.flip(img,boolean,boolean_2)
  
@@ -161,8 +163,7 @@ class entity(object):
         self.offset = [0,0]
         self.rotation = 0
         self.type = e_type # used to determine animation set among other things
-        self.action = ""
-        self.set_action('idle') # overall action for the entity
+        self.action = "idle"
         self.alpha = None
         self.current_frame = 0
         self.totalframes = self.sheet.width() / self.size_x
@@ -173,6 +174,7 @@ class entity(object):
                 self.animations[anim.split("/")[-1]] = anim_database[anim]
         self.start()
         self.next_step = int(self.animations[self.action][0][self.current_frame])
+        self.set_action('idle')  # overall action for the entity
 
     def scale_size(self, scaling):
         self.scale = scaling
@@ -208,6 +210,9 @@ class entity(object):
             self.image = self.sheet.image_at((0, 0, self.size_x, self.size_y), self.colorkey)
             self.totalframes = self.sheet.width() / self.size_x
             self.running = True
+            self.current_frame = 0
+            self.next_step = int(self.animations[self.action][0][self.current_frame])
+            self.countframes = 0
 
     def get_entity_angle(entity_2):
         x1 = self.x+int(self.size_x/2)
@@ -249,7 +254,7 @@ class entity(object):
                 self.current_frame += 1
             if self.current_frame == self.totalframes:
                 self.current_frame = 0
-                if self.animations[self.action][1] != "loop":
+                if self.animations[self.action][-1] != "loop":
                     self.running = False
             self.image = self.sheet.image_at((self.current_frame * self.size_x, 0, self.size_x, self.size_y))
 
@@ -261,7 +266,7 @@ class entity(object):
             image_to_render = pygame.transform.rotate(image_to_render,self.rotation)
             if self.alpha != None:
                 image_to_render.set_alpha(self.alpha)
-            blit_center(surface,image_to_render,(int(self.x)+self.offset[0]+center_x,int(self.y)+self.offset[1]+center_y), self.scale)
+            blit_center(surface,flip(image_to_render, self.flip),(int(self.x)+self.offset[0]+center_x,int(self.y)+self.offset[1]+center_y), self.scale)
 
 # particles
 global anim_database
@@ -392,13 +397,14 @@ def block_at(pos, CHUNK_SIZE, off, chunk):
         if a[0] == [posx, posy]:
             return chunk.index(a)
 
-def show_text(Text,X,Y,WidthLimit,Font,surface,scaling=1,overflow='normal', Spacing=1):
+def show_text(Text,X,Y,wl,Font,surface,scaling=1,overflow='normal', Spacing=1):
     Text += ' '
     OriginalX = X
     OriginalY = Y
     X = 0
     Y = 0
     CurrentWord = ''
+    WidthLimit = wl / scaling + OriginalX
     if overflow == 'normal':
         for char in Text:
             if char not in [' ','\n']:
@@ -412,8 +418,8 @@ def show_text(Text,X,Y,WidthLimit,Font,surface,scaling=1,overflow='normal', Spac
                 for char2 in CurrentWord:
                     WordTotal += Font[char2][0]
                     WordTotal += Spacing
-                if WordTotal+X-OriginalX > WidthLimit:
-                    X = OriginalX
+                if WordTotal+X+OriginalX > WidthLimit:
+                    X = 0
                     Y += Font['Height']
                 for char2 in CurrentWord:
                     Image = Font[str(char2)][1]
@@ -424,11 +430,11 @@ def show_text(Text,X,Y,WidthLimit,Font,surface,scaling=1,overflow='normal', Spac
                     X += Font['A'][0]
                     X += Spacing
                 else:
-                    X = OriginalX
+                    X = 0
                     Y += Font['Height']
                 CurrentWord = ''
-            if X-OriginalX > WidthLimit:
-                X = OriginalX
+            if X+OriginalX > WidthLimit:
+                X = 0
                 Y += Font['Height']
         return X,Y
     if overflow == 'cut all':
@@ -447,11 +453,11 @@ def show_text(Text,X,Y,WidthLimit,Font,surface,scaling=1,overflow='normal', Spac
                     X += Font['A'][0]
                     X += Spacing
                 if char == '\n':
-                    X = OriginalX
+                    X = 0
                     Y += Font['Height']
                 CurrentWord = ''
-            if X-OriginalX > WidthLimit:
-                X = OriginalX
+            if X+OriginalX > WidthLimit:
+                X = 0
                 Y += Font['Height']
         return X,Y
 
