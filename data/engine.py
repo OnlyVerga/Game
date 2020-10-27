@@ -23,6 +23,13 @@ font_dat = {'A':[3],'B':[3],'C':[3],'D':[3],'E':[3],'F':[3],'G':[3],'H':[3],'I':
           '0':[3],'1':[3],'2':[3],'3':[3],'4':[3],'5':[3],'6':[3],'7':[3],'8':[3],'9':[3],
           '(':[2],')':[2],'/':[3],'_':[5],'=':[3],'\\':[3],'[':[2],']':[2],'*':[3],'"':[3],'<':[3],'>':[3],';':[1]}
 
+global e_colorkey
+e_colorkey = white
+
+pygame.init()
+
+Monitor = pygame.display.Info()
+
 class Spritesheet(object):
     def __init__(self, filename):
         self.sheet = pygame.image.load(filename).convert()
@@ -31,10 +38,10 @@ class Spritesheet(object):
         rect = pygame.Rect(rectangle)
         image = pygame.Surface(rect.size).convert()
         image.blit(self.sheet, (0, 0), rect)
-        if colorkey is not None:
+        if colorkey != None:
             if colorkey == -1:
                 colorkey = image.get_at((0, 0))
-            image.set_colorkey(colorkey)
+            image.set_colorkey(white)
         return image
 
     def images_at(self, rects, colorkey = None):
@@ -42,15 +49,6 @@ class Spritesheet(object):
 
     def width(self):
         return self.sheet.get_width()
-
-
-
-global e_colorkey
-e_colorkey = white
-
-pygame.init()
-
-Monitor = pygame.display.Info()
 
 def set_global_colorkey(colorkey):
     global e_colorkey
@@ -111,31 +109,6 @@ class physics_obj(object):
             self.change_y = 0
             self.y = self.rect.y
         return collision_types
-
-class cuboid(object):
-    
-    def __init__(self,x,y,z,x_size,y_size,z_size):
-        self.x = x
-        self.y = y
-        self.z = z
-        self.x_size = x_size
-        self.y_size = y_size
-        self.z_size = z_size
-        
-    def set_pos(self,x,y,z):
-        self.x = x
-        self.y = y
-        self.z = z
-        
-    def collidecuboid(self,cuboid_2):
-        cuboid_1_xy = pygame.Rect(self.x,self.y,self.x_size,self.y_size)
-        cuboid_1_yz = pygame.Rect(self.y,self.z,self.y_size,self.z_size)
-        cuboid_2_xy = pygame.Rect(cuboid_2.x,cuboid_2.y,cuboid_2.x_size,cuboid_2.y_size)
-        cuboid_2_yz = pygame.Rect(cuboid_2.y,cuboid_2.z,cuboid_2.y_size,cuboid_2.z_size)
-        if (cuboid_1_xy.colliderect(cuboid_2_xy)) and (cuboid_1_yz.colliderect(cuboid_2_yz)):
-            return True
-        else:
-            return False
 
 # entity stuff
 
@@ -256,7 +229,7 @@ class entity(object):
                 self.current_frame = 0
                 if self.animations[self.action][-1] != "loop":
                     self.running = False
-            self.image = self.sheet.image_at((self.current_frame * self.size_x, 0, self.size_x, self.size_y))
+            self.image = self.sheet.image_at((self.current_frame * self.size_x, 0, self.size_x, self.size_y), self.colorkey)
 
     def display(self,surface):
         image_to_render = self.image
@@ -282,63 +255,86 @@ def load_animations(path):
         relative_to, duration, tags = anim.split(" ")
         anim_database[relative_to] = [duration.split(";"), tags]
 
-def particle_file_sort(l):
-    l2 = []
-    for obj in l:
-        l2.append(int(obj[:-4]))
-    l2.sort()
-    l3 = []
-    for obj in l2:
-        l3.append(str(obj) + '.png')
-    return l3
+global particle_path
 
-global particle_images
-particle_images = {}
+def enable_particles():
+    global particle_path
+    particle_path = anim_path + "/particles/"
 
-def load_particle_images(path):
-    global particle_images, e_colorkey
-    file_list = os.listdir(path)
-    for folder in file_list:
-        try:
-            img_list = os.listdir(path + '/' + folder)
-            img_list = particle_file_sort(img_list)
-            images = []
-            for img in img_list:
-                images.append(pygame.image.load(path + '/' + folder + '/' + img).convert())
-            for img in images:
-                img.set_colorkey(e_colorkey)
-            particle_images[folder] = images.copy()
-        except:
-            pass
+class Particle:
+    def __init__(self, X, Y, motion, width, height, type, step = 4, colorkey = e_colorkey, enable_physics = False, physics = [0, []]):
+        self.x = X
+        self.y = Y
+        self.w = width
+        self.h = height
+        self.type = type
+        self.colorkey = colorkey
+        self.sheet = Spritesheet(particle_path + self.type + ".png")
+        self.current_frame = 0
+        self.img = self.sheet.image_at((self.current_frame, self.current_frame, self.w, self.h), self.colorkey)
+        self.totalframes = self.sheet.width() / self.w
+        self.step = step
+        self.countframes = 0
+        self.running = True
+        self.motion = list(motion)
+        self.delta_motion = [abs(self.motion[0] / self.totalframes), abs(self.motion[1] / self.totalframes)]
+        self.g = physics[0]
+        self.colliding = physics[1]
+        self.physics = enable_physics
+        self.obj = physics_obj(self.x, self.y, self.w, self.h)
 
-class particle(object):
+    def display(self, display, scale = 1):
+        display.blit(pygame.transform.scale(self.img, (self.w * scale, self.h * scale)), (self.x, self.y))
 
-    def __init__(self,x,y,particle_type,motion,decay_rate,start_frame,custom_color=None):
-        self.x = x
-        self.y = y
-        self.type = particle_type
-        self.motion = motion
-        self.decay_rate = decay_rate
-        self.color = custom_color
-        self.frame = start_frame
-
-    def draw(self,surface,scroll):
-        global particle_images
-        if self.frame > len(particle_images[self.type])-1:
-            self.frame = len(particle_images[self.type])-1
-        if self.color == None:
-            blit_center(surface,particle_images[self.type][int(self.frame)],(self.x-scroll[0],self.y-scroll[1]))
-        else:
-            blit_center(surface,swap_color(particle_images[self.type][int(self.frame)],(255,255,255),self.color),(self.x-scroll[0],self.y-scroll[1]))
+    def is_alive(self):
+        return self.running
 
     def update(self):
-        self.frame += self.decay_rate
-        running = True
-        if self.frame > len(particle_images[self.type])-1:
-            running = False
-        self.x += self.motion[0]
-        self.y += self.motion[1]
-        return running
+        if self.running:
+            if self.motion[0] > 0:
+                self.motion[0] -= self.delta_motion[0]
+                if self.motion[0] < 1:
+                    self.motion[0] = 0
+            elif self.motion[0] < 0:
+                self.motion[0] += self.delta_motion[0]
+                if self.motion[0] > -1:
+                    self.motion[0] = 0
+            if self.motion[1] > 0:
+                self.motion[1] -= self.delta_motion[1]
+                if self.motion[1] < 1:
+                    self.motion[1] = 0
+            elif self.motion[1] < 0:
+                self.motion[1] += self.delta_motion[1]
+                if self.motion[1] > -1:
+                    self.motion[1] = 0
+            if self.physics:
+                self.motion[1] += self.g
+                if self.motion[1] > self.g:
+                    self.motion[1] -= 2
+                collisions = self.obj.move(self.motion, self.colliding)
+                if collisions["top"] or collisions["bottom"]:
+                    self.motion[1] = 0
+                if collisions["left"] or collisions["right"]:
+                    self.motion[0] = 0
+
+                self.x = self.obj.x
+                self.y = self.obj.y
+            else:
+                self.x += self.motion[0]
+                self.y += self.motion[1]
+
+            self.countframes += 1
+            if self.countframes >= self.step:
+                self.countframes = 0
+                self.current_frame += 1
+            if self.current_frame < self.totalframes:
+                self.img = self.sheet.image_at((self.current_frame * self.w, 0, self.w, self.h), self.colorkey)
+            else:
+                self.running = False
+
+    def play(self, display):
+        self.update()
+        self.display(display)
         
 # other useful functions
 
